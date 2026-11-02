@@ -1,0 +1,54 @@
+{
+  "name": "emirrius",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "sim:cantor": "CANTOR_REPORT=1 vitest run tests/cantorSim.test.ts --silent=false",
+    "electron": "vite build && electron .",
+    "dist:win": "vite build && electron-builder --win portable nsis --x64",
+    "dist:linux": "vite build && electron-builder --linux AppImage --x64"
+  },
+  "devDependencies": {
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0",
+    "phaser": "^3.90.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "main": "electron/main.cjs",
+  "description": "Emirrius - 2D action platformer",
+  "author": "N1mblexe",
+  "build": {
+    "appId": "com.n1mblexe.emirrius",
+    "productName": "Emirrius",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "artifactName": "${productName}-${version}-${arch}-${target}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-Portable.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}-${version}-Setup.${ext}"
+    },
+    "linux": {
+      "category": "Game"
+    }
+  }
+}
