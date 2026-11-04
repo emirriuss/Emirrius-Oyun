@@ -10,7 +10,10 @@
  *  - Variety: Shannon entropy of the move pick, and a repeat cap.
  */
 
-/** Human timing constants (ms). Simple visual RT ~250 ms; Hick slope ~150 ms/bit; safety slack. */
+/**
+ * Human timing constants (ms). rt and hickB come from the literature: simple visual reaction time
+ * ~250 ms, Hick-Hyman choice-time slope ~150 ms/bit (Hick 1952; Hyman 1953). slack is a design margin.
+ */
 export const HUMAN = { rt: 250, hickB: 150, slack: 80 } as const;
 
 /** Player movement from PLAYER in config.ts: run 150 px/s; one dash = 380 px/s x 0.15 s = 57 px. */
@@ -51,7 +54,13 @@ export interface Skill {
   heartPickup: number;
 }
 
-/** Three reference players (calibrated once, boss-independent). */
+/**
+ * Three reference players (boss-independent). These values are ESTIMATES, not measurements: they
+ * were picked by hand to be plausible and ordered (expert > average > novice), and only the timing
+ * base they shift (HUMAN.rt, HUMAN.hickB) comes from the literature. Treat the sim's win rates as
+ * relative between bosses / phases / difficulties. To calibrate: fit these to recorded real players
+ * (parry rate, hits taken per telegraph, fight length per phase). See README "Boss-tuning model".
+ */
 export const SKILL: Record<'novice' | 'average' | 'expert', Skill> = {
   novice: { rtShift: 90, sigma: 90, lapse: 0.04, punishEff: 0.6, openEff: 0.12, parry: 0.05, dmgMul: 1.2, maxHp: 6, heartPickup: 0.75 },
   average: { rtShift: 30, sigma: 65, lapse: 0.033, punishEff: 0.75, openEff: 0.2, parry: 0.15, dmgMul: 1.4, maxHp: 7, heartPickup: 0.85 },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PlayerReader, READ, shouldCounter, pickWeighted } from '../src/combat/playerRead';
+import { PlayerReader, READ, shouldCounter, pickWeighted, noteSwings } from '../src/combat/playerRead';
 
 /** samples every 100 ms from t0 to t1 */
 function fill(r: PlayerReader, t0: number, t1: number, air: (t: number) => boolean, dist = 60): void {
@@ -102,5 +102,37 @@ describe('pickWeighted', () => {
   });
   it('returns null for an all-zero table', () => {
     expect(pickWeighted([['a', 0]], [], 0.5)).toBeNull();
+  });
+});
+
+describe('noteSwings (swing counting for Aurren)', () => {
+  it('counts every hit of a combo, not just the first (the FSM stays in attack between hits)', () => {
+    const r = new PlayerReader();
+    let seen = noteSwings(r, -1, 0, 0); // first read only syncs
+    // a 3-hit combo: swingCount 0 -> 1 -> 2 -> 3 while the state name stays 'attack'
+    for (let c = 1; c <= 3; c++) seen = noteSwings(r, seen, c, 1000 + c * 200);
+    expect(r.count('swing', 1600)).toBe(3);
+  });
+
+  it('two hits landing within one frame are both counted', () => {
+    const r = new PlayerReader();
+    noteSwings(r, 4, 6, 500);
+    expect(r.count('swing', 500)).toBe(2);
+  });
+
+  it('five fast combo hits read as spam (the old state-change count saw only 2 of them)', () => {
+    const r = new PlayerReader();
+    let seen = noteSwings(r, -1, 0, 0);
+    // combo 1-2-3, then a new combo 1-2: five swings in 2 s
+    for (let c = 1; c <= READ.spamSwings; c++) seen = noteSwings(r, seen, c, 10000 + c * 400);
+    expect(r.habit(10000 + READ.spamSwings * 400)).toBe('spam');
+  });
+
+  it('no new swings, first sync and a counter reset add nothing', () => {
+    const r = new PlayerReader();
+    expect(noteSwings(r, -1, 12, 0)).toBe(12); // earlier swings in the level are not history
+    expect(noteSwings(r, 12, 12, 100)).toBe(12);
+    expect(noteSwings(r, 12, 0, 200)).toBe(0); // new player object
+    expect(r.count('swing', 200)).toBe(0);
   });
 });

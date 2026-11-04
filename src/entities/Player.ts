@@ -48,6 +48,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite implements Hurtable {
 
   // combat
   private comboStep = 0;
+  private _swingCount = 0;
   private lastAttackEndAt = -9999;
   private lastEnergySlashAt = -9999;
   private lastPogoAt = -9999;
@@ -797,7 +798,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite implements Hurtable {
     this.parryActiveUntil = 0;
   }
 
+  /**
+   * Swings started so far (ground/air/up attack, heavy, slam). Bumped on every state entry, so each
+   * hit of a combo counts even though the FSM stays in 'attack' between hits. Read by Aurren.
+   */
+  get swingCount(): number {
+    return this._swingCount;
+  }
+
   private enterAttack(): void {
+    this._swingCount++;
     this.faceInput();
     const step = this.comboStep;
     this.attackQueued = false;
@@ -862,6 +872,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite implements Hurtable {
   }
 
   private enterAirAttack(): void {
+    this._swingCount++;
     // off a wall slide: swing away from the wall
     if (!this.grounded && this.wallDir !== 0 && this.gs.time.now - this.lastWallAt < 30) this.face(this.wallDir > 0 ? -1 : 1);
     else this.faceInput();
@@ -940,6 +951,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite implements Hurtable {
     return (r.x + r.w / 2 - this.x) * this.facing > this.body.width / 2;
   }
   private enterSlam(): void {
+    this._swingCount++;
     this.body.setVelocity(0, -80);
     this.setTint(0xffe066);
     this.slamBox = undefined;
@@ -1042,6 +1054,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite implements Hurtable {
     bus.emit('charge', 0);
   }
   private enterHeavy(): void {
+    this._swingCount++;
     this.faceInput();
     sfx.heavyHit();
     this.body.setVelocityX(this.facing * 260);
@@ -1136,6 +1149,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite implements Hurtable {
 
   // ---------------------------------------------------------------- up attack
   private enterUpAttack(): void {
+    this._swingCount++;
     sfx.swing();
     this.faceInput();
     this.openParry(true); // covers above, so parries from either side

@@ -28,6 +28,8 @@ export interface FightResult {
   hits: number;
   hearts: number;
   parries: number;
+  /** fight time (ms) at which HP reached 0, or null if the player never died. Death is final. */
+  deathMs: number | null;
   /** ms spent in each phase (index 0..2) */
   phaseMs: [number, number, number];
 }
@@ -39,20 +41,28 @@ export function simulateFight(skill: Skill, diff: DiffName, rnd: () => number): 
   const dps = COMBO_DPS * skill.dmgMul;
   let boss = maxBoss, hp = maxHp, t = 0, phase = 1;
   let hits = 0, hearts = 0, parries = 0, heartClock = 0;
+  let deathMs: number | null = null;
+  const dead = () => deathMs !== null;
   const phaseMs: [number, number, number] = [0, 0, 0];
   const history: CantorMove[] = [];
   const seen = new Set<CantorMove>();
 
+  // once dead, time stops and no heart (periodic, phase or parry) can revive the player
   const pass = (ms: number) => {
+    if (dead()) return;
     t += ms;
     phaseMs[Math.min(3, phase) - 1] += ms;
     heartClock += ms;
     while (heartClock >= HEART_PERIOD) {
       heartClock -= HEART_PERIOD;
-      if (hp < maxHp && rnd() < skill.heartPickup) { hp++; hearts++; }
+      if (hp > 0 && hp < maxHp && rnd() < skill.heartPickup) { hp++; hearts++; }
     }
   };
-  const heal = () => { if (rnd() < skill.heartPickup && hp < maxHp) { hp++; hearts++; } };
+  const heal = () => { if (!dead() && rnd() < skill.heartPickup && hp < maxHp) { hp++; hearts++; } };
+  const hurt = (dmg: number) => {
+    hp -= dmg;
+    if (hp <= 0) deathMs = t;
+  };
   /** deal damage; returns true when a phase changed (the chain is interrupted) */
   const deal = (dmg: number): boolean => {
     boss -= dmg * (phase >= 3 ? VESPERS_TAKEN : 1);
@@ -66,11 +76,11 @@ export function simulateFight(skill: Skill, diff: DiffName, rnd: () => number): 
     return changed;
   };
 
-  while (boss > 0 && hp > 0 && t < 600000) {
+  while (boss > 0 && !dead() && t < 600000) {
     const ph = Math.min(3, phase) - 1;
     let interrupted = false;
     let carillon = false;
-    for (let i = 0; i < CHAIN[ph] && !interrupted && hp > 0 && boss > 0; i++) {
+    for (let i = 0; i < CHAIN[ph] && !interrupted && !dead() && boss > 0; i++) {
       const m = chooseMove(phase, 150 * rnd() + 40, rnd() < 0.15, history, rnd);
       history.push(m);
       if (history.length > 4) history.shift();
@@ -79,7 +89,7 @@ export function simulateFight(skill: Skill, diff: DiffName, rnd: () => number): 
       const s = SPEC[m];
       const n = Math.max(1, s.strikes[ph]);
       pass(rnd() * beatMs(ph)); // waiting for the downbeat
-      for (let k = 0; k < n && hp > 0; k++) {
+      for (let k = 0; k < n && !dead(); k++) {
         // first strike answers the full telegraph; follow-ups ride a known rhythm (no choice to make)
         const p = k === 0 ? hitProb(strikeTimes(m, ph, first)[0], s.choices, s.travel, skill) : hitProb(strikeGapMs(ph), 0, 0, skill);
         const dmgBase = k === n - 1 && s.lastDmg ? s.lastDmg : s.dmg;
@@ -89,15 +99,16 @@ export function simulateFight(skill: Skill, diff: DiffName, rnd: () => number): 
           if (deal(dps * skill.punishEff * PARRY_MUL * (PARRY_STUN_MS / 1000))) { interrupted = true; break; }
         } else if (rnd() < p) {
           hits++;
-          hp -= Math.max(1, Math.round(dmgBase * d.dmgMul));
+          hurt(Math.max(1, Math.round(dmgBase * d.dmgMul)));
         }
       }
+      if (dead()) break;
       const dur = moveMs(m, ph, first);
       pass(dur);
       if (!interrupted && deal(dps * skill.openEff * CHIP * (dur / 1000))) interrupted = true;
       if (m === 'carillon') { carillon = true; break; }
     }
-    if (interrupted || hp <= 0 || boss <= 0) continue;
+    if (interrupted || dead() || boss <= 0) continue;
     const pun = carillon ? CARILLON_PUNISH : punishMs(ph);
     pass(pun);
     if (deal(dps * skill.punishEff * PUNISH_MUL * (pun / 1000))) continue;
@@ -105,7 +116,7 @@ export function simulateFight(skill: Skill, diff: DiffName, rnd: () => number): 
     pass(idle);
     deal(dps * skill.openEff * (idle / 1000));
   }
-  return { win: boss <= 0 && hp > 0, ms: t, hpLeft: Math.max(0, hp), maxHp, hits, hearts, parries, phaseMs };
+  return { win: boss <= 0 && !dead(), ms: t, hpLeft: Math.max(0, hp), maxHp, hits, hearts, parries, deathMs, phaseMs };
 }
 
 export interface SimReport {

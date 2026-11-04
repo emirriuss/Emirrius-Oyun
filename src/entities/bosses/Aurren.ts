@@ -6,7 +6,7 @@ import { AurrenEcho } from './AurrenEcho';
 import { SunKit } from './aurrenSun';
 import { Hitbox } from '../../combat/Hitbox';
 import type { HitInfo, Rect } from '../../combat/types';
-import { PlayerReader, shouldCounter, pickWeighted, type Habit } from '../../combat/playerRead';
+import { PlayerReader, shouldCounter, pickWeighted, noteSwings, type Habit } from '../../combat/playerRead';
 import { TILE } from '../../config';
 import { bus } from '../../core/events';
 import { sfx, tone, noise } from '../../systems/sfx';
@@ -123,6 +123,8 @@ export class Aurren extends Boss {
   readonly reader = new PlayerReader();
   private lastCounterAt = -1e9;
   private lastFsm: string | null = null;
+  /** player's swingCount at the last read (-1 = not synced yet) */
+  private lastSwing = -1;
   private nextSample = 0;
   private seenSlashes = new WeakSet<Projectile>();
   /** every visual this boss created, destroyed with him */
@@ -307,8 +309,9 @@ export class Aurren extends Boss {
     const p = this.player;
     const now = this.gs.time.now;
     const cur = p.fsm.current;
+    // every swing counts, combo follow-ups included (the FSM stays in 'attack' between combo hits)
+    this.lastSwing = noteSwings(this.reader, this.lastSwing, p.swingCount, now);
     if (cur !== this.lastFsm) {
-      if (cur && ['attack', 'airAttack', 'upAttack', 'heavy', 'slam'].includes(cur)) this.reader.note('swing', now);
       if (cur === 'dash') this.reader.note('dash', now);
       this.lastFsm = cur;
     }

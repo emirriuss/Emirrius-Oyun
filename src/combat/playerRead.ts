@@ -94,6 +94,17 @@ export class PlayerReader {
 }
 
 /**
+ * Feed the reader one 'swing' per new player swing. `count` is the player's running swing counter
+ * (it grows on every swing, combo follow-ups included); `prev` is the last value seen, or a negative
+ * number before the first read. The first read, or a counter that went backwards (a new player
+ * object), only syncs without noting old swings. Returns the value to pass as `prev` next time.
+ */
+export function noteSwings(reader: PlayerReader, prev: number, count: number, now: number): number {
+  if (prev >= 0 && count > prev) for (let i = prev; i < count; i++) reader.note('swing', now);
+  return count;
+}
+
+/**
  * Should the boss answer `habit` with its counter now? Needs a habit, the counter off cooldown and a
  * roll under counterChance (`roll` in [0, 1), injected for tests).
  */

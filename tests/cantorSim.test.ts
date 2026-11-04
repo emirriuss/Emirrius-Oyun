@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { report, type SimReport } from '../src/combat/cantorSim';
+import { report, simulateFight, type SimReport } from '../src/combat/cantorSim';
 import { windupMs, floorMs, punishMs, idleMs, expectedChainMs, pickEntropy, beatMs, type CantorMove } from '../src/combat/cantorPlan';
-import type { SkillName, DiffName } from '../src/combat/funMath';
+import { SKILL, seeded, type SkillName, type DiffName } from '../src/combat/funMath';
 
 /**
  * The "is it fun?" gate for CANTOR: whole fights simulated with the funMath player model.
@@ -51,6 +51,22 @@ describe('CANTOR fight simulation', () => {
     expect(a.budgetUsed).toBeLessThanOrEqual(0.95);
     expect(a.winHpLeft).toBeGreaterThanOrEqual(1);
     expect(a.winHpLeft).toBeLessThanOrEqual(3.5);
+  });
+
+  // Death is final: once HP reaches 0 no heart (periodic, phase-change or parry) may revive the player.
+  it('death ends the fight at once: no healing after 0 HP, a run that died is never a win', () => {
+    const fragile = { ...SKILL.novice, maxHp: 2, heartPickup: 1 };
+    const rnd = seeded(3);
+    let deaths = 0;
+    for (let i = 0; i < 2000; i++) {
+      const f = simulateFight(fragile, 'normal', rnd);
+      if (f.deathMs === null) continue;
+      deaths++;
+      expect(f.win).toBe(false);
+      expect(f.hpLeft).toBe(0);
+      expect(f.ms).toBe(f.deathMs);
+    }
+    expect(deaths).toBeGreaterThan(1000);
   });
 
   it.runIf(!!(globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.CANTOR_REPORT)('prints the report', () => {
